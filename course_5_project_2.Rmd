@@ -1,0 +1,268 @@
+---
+title: "Population health and economic consequences of weather events: 1950 - 2011"
+author: "Steve Scicluna"
+date: "14 March 2019"
+output: 
+  html_document: 
+    fig_height: 6
+    fig_width: 9
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###**Synopsis**
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) **Storm Events Database**. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage. The data sourced for this project comprised 902,297 observations of 37 variables taken across the United States from January 1950 to November 2011.
+
+This analysis was undertaken to identify the types of weather events that had the greatest health and economic consequences across the United States from 1950 to 2011.
+
+Tornado events were found to have the greatest health consequences, causing 5,633 fatalities and 91,346 injuries.
+
+Flood events were found to have the greatest economic consequences, causing 150 billion dollars in combined property and crop damage.
+
+###**Data Processing**
+
+####**Download and unzip data into R**
+
+The data was originally sourced from the U.S. National Ocean and Atmospheric Administration's (NOAA) **Storm Events Database**.
+
+The data was downloaded from the Coursera website using the URL https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2. A study of the URL name showed that the filename was **repdata_data_StormData.csv.bz2**. This file was downloaded into the R working directory and unzipped into a dataframe called **stormdata**. Once this was done, a check was made of the dataframe's structure to find the number of rows and columns, and to identify the type of data stored for each variable.
+
+```{r download and read in data, message = FALSE, cache = TRUE}
+
+# download and read data into R
+
+# define working names for URL and filename
+        url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+        filename <- "repdata_data_StormData.csv.bz2"
+        
+# download file from url
+        download.file(url, filename)
+        
+# read data in to R dataframe
+        stormdata <- read.csv(filename)
+        
+# check dataframe characteristics
+        str(stormdata)
+```
+
+####**Extract relevant fields**
+
+The dataframe was found to contain `r nrow(stormdata)` observations of `r ncol(stormdata)` variables. For the purpose of this analysis, only variables relating to event types, fatalities, injuries, property damage, and crop damage were required. These relevant fields were extracted into a new dataframe called **effect**, as they described the effects of the weather events.
+
+Two fields in particular, **PROPDMGEXP** and **CROPDMGEXP**, required further investigation, as they were found to be character rather than numeric strings.
+
+```{r extract relevant fields, message = FALSE}
+
+# extract relevant fields
+
+# load dplyr package
+        library(dplyr)
+
+# define and select relevant effect fields
+        effect <- select(stormdata, EVTYPE, FATALITIES:CROPDMGEXP)
+        
+# check dataframe characteristics
+        str(effect)
+```
+
+```{r check exponent values}
+
+# check the possible values for each of these fields
+        unique(effect$PROPDMGEXP)
+        unique(effect$CROPDMGEXP)
+```
+
+####**Investigation and re-processing of PROPDMGEXP and CROPDMGEXP fields**
+
+The possible values for **PROPDMGEXP** and **CROPDMGEXP** included the numerals 0 to 8; the lower case letters h and m; the upper case letters H, K, M, and B; and the miscellaneous characters -, +, ?, and blank space.
+
+Given the last three characters (EXP) of these two field names, it was assumed that the values in this fields referred to exponents, or powers of 10. Therefore, the numerals 0 to 8 were converted to 10^0 to 10^8 respectively. H and h were assumed to represent hundreds, and were converted to 10^2. K was assumed to represent thousands, and converted to 10^3. M and m were assumed to represent millions, and were converted to 10^6. B was assumed to refer to billions, and was converted to 10^9. In the absence of any other information, it was assumed that the remaining values did not represent any specific exponent, and so were converted to 10^0, or 1.
+
+These property damage and crop damage multipliers, **PROPDMGMULT** and **CROPDMGMULT**, were then applied to the numeric values for property and crop damage, **PROGDMG** and **CROPDMG**, to arrive at property and crop damage costs, **PROPDMGCOST** and **CROPDMGCOST**.
+
+Given that the property and crop damage costs of major weather events like tornadoes and floods were in the billions of dollars, **PROPDMGCOST** and **CROPDMGCOST** were both divided by one billion to express these costs in billion dollar units.
+
+Finally, the **PROPDMGCOST** and **CROPDMGCOST** fields were added to arrive at a **TOTALDMGCOST** field representing total economic costs.
+
+```{r convert PROPDMGEMP exponents to multipliers}
+
+# convert PROPDMGEXP character strings to multipliers
+
+# assume numbers 0 - 8 are powers of 10
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "0"] <- 10^0
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "1"] <- 10^1
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "2"] <- 10^2
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "3"] <- 10^3
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "4"] <- 10^4
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "5"] <- 10^5
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "6"] <- 10^6
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "7"] <- 10^7
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "8"] <- 10^8
+        
+# assume h and H are hundred
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "h"] <- 10^2
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "H"] <- 10^2
+        
+# assume K is thousand
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "K"] <- 10^3
+        
+# assume m and M are million
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "m"] <- 10^6
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "M"] <- 10^6
+        
+# assume B is billion
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "B"] <- 10^9
+        
+# assume blank, -, +, and ? are one
+        effect$PROPDMGMULT[effect$PROPDMGEXP == ""] <- 1
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "-"] <- 1
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "+"] <- 1
+        effect$PROPDMGMULT[effect$PROPDMGEXP == "?"] <- 1
+
+# define property damage cost field
+        effect$PROPDMGCOST <- effect$PROPDMG * effect$PROPDMGMULT / 10^9 # express in billions
+```
+
+```{r convert CROPDMGEMP exponents to multipliers}
+
+# convert CROPDMGEXP character strings to multipliers
+
+# assume numbers 0 and 2 are powers of 10
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "0"] <- 10^0
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "2"] <- 10^2
+        
+# assume k and K are thousand
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "k"] <- 10^3
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "K"] <- 10^3
+        
+# assume m and M are million
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "m"] <- 10^6
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "M"] <- 10^6
+        
+# assume B is billion
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "B"] <- 10^9
+        
+# assume blank and ? are one
+        effect$CROPDMGMULT[effect$CROPDMGEXP == ""] <- 1
+        effect$CROPDMGMULT[effect$CROPDMGEXP == "?"] <- 1
+
+# define crop damage cost field
+        effect$CROPDMGCOST <- effect$CROPDMG * effect$CROPDMGMULT / 10^9 # express in billions
+
+# add property and crop damage costs
+        effect$TOTALDMGCOST <- effect$PROPDMGCOST + effect$CROPDMGCOST
+
+# check new fields added
+        str(effect)
+```
+
+###**Results**
+
+This analysis was undertaken to answer two questions:
+
+1. Across the United States, which types of events (as indicated by the **EVTYPE** variable) are most harmful with respect to population health?
+
+2. Across the United States, which types of events have the greatest economic consequences?
+
+The **effect** dataframe was analysed to aggregate the number of fatalities and injuries, and the costs of property and crop damage, by event type, rank event types for each type of effect in descending order, and create a table of the top 10 event types for each type of effect.
+
+```{r calculate totals, message = FALSE}
+
+# group and calculate totals
+
+# total fatalities
+        totalfatalities <- aggregate(FATALITIES ~ EVTYPE, effect, FUN = sum)
+        totalfatalities <- arrange(totalfatalities, desc(FATALITIES)) # rank high to low
+        top10fatalities <- totalfatalities[1:10,] # top 10
+        top10fatalities
+        
+# total injuries
+        totalinjuries <- aggregate(INJURIES ~ EVTYPE, effect, FUN = sum)
+        totalinjuries <- arrange(totalinjuries, desc(INJURIES)) # rank high to low
+        top10injuries <- totalinjuries[1:10,] # top 10
+        top10injuries
+        
+# total economic cost
+        options("scipen" = 100, "digits" = 2)
+        totaldmg <- aggregate(TOTALDMGCOST ~ EVTYPE, effect, FUN = sum)
+        totaldmg <- arrange(totaldmg, desc(TOTALDMGCOST)) # rank high to low
+        top10dmg <- totaldmg[1:10,] # top 10
+        top10dmg
+```
+
+####**Event types with the greatest health and economic consequences**
+
+**FATALITIES**: `r top10fatalities$EVTYPE[1]` events caused the greatest number of fatalities, at `r top10fatalities$FATALITIES[1]`.
+
+**INJURIES**: `r top10injuries$EVTYPE[1]` events caused the greatest number of injuries, at `r top10injuries$INJURIES[1]`.
+
+**TOTAL ECONOMIC DAMAGE**: `r top10dmg$EVTYPE[1]` events caused the most combined property and crop damage, at `r top10dmg$TOTALDMGCOST[1]` billion dollars.
+
+
+####**Significance of top 10 causes of fatalities and injuries**
+
+The first two bar charts describe the significance of `r top10fatalities$EVTYPE[1]` events, compared to the next nine, on fatalities and injuries.
+
+```{r plot fatalities and injuries}
+
+# set up a 1x2 view of two graphs
+        par(mfrow = c(1,2), mar=c(12, 6, 3, 3), mgp=c(4, 1, 0), las=2, cex = 0.8)
+
+# force standard notation for y axis (instead of scientific notation)
+        options("scipen" = 100)
+
+# fatalities bar chart
+        barplot(top10fatalities$FATALITIES,
+                names.arg = top10fatalities$EVTYPE, 
+                main = "Top 10 Fatality Event Types", 
+                ylab = "Number of fatalities", 
+                ylim = c(0, 6000), 
+                col = "black")
+        
+# injuries bar chart
+        barplot(top10injuries$INJURIES, 
+                names.arg = top10injuries$EVTYPE, 
+                main = "Top 10 Injury Event Types", 
+                ylab = "Number of injuries", 
+                ylim = c(0, 100000), 
+                col = "dark red")
+```
+
+####**Significance of top 10 causes of property and crop damage**
+
+The third bar chart describes the significance of `r top10dmg$EVTYPE[1]` events, compared to the next nine, on **combined** property and crop damage.
+
+```{r plot total property and crop damage}
+
+# set up graph parameters
+        par(mar=c(12, 6, 3, 3), mgp=c(4, 1, 0), las=2, cex = 0.8)
+
+# force standard notation for y axis (instead of scientific notation)
+        options("scipen" = 100)
+
+# total damage bar chart
+        barplot(top10dmg$TOTALDMGCOST,
+                names.arg = top10dmg$EVTYPE, 
+                main = "Top 10 Combined Property and Crop Damage Event Types", 
+                ylab = "Combined Property and Crop damage ($billion)", 
+                ylim = c(0, 170), 
+                col = " dark green")
+```
+
+###**Appendix**
+
+R version 3.5.2 (2018-12-20) - "Eggshell Igloo"
+
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+RStudio version 1.1.463
+
+Windows 10 Home operating system, version 1809, OS build 17763.379
+
+
